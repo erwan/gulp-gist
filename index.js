@@ -46,7 +46,7 @@ var gulpGist = function() {
                 }
                 gists.push(currentGist);
                 currentGist = null;
-            } else if (currentGist) {
+            } else if (currentGist && line.indexOf("gisthide") < 0) {
                 currentGist.lines.push(line);
             }
             lineNo += 1;
