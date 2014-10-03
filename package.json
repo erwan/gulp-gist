@@ -1,0 +1,32 @@
+{
+    "name": "gulp-gist",
+    "version": "0.1.0",
+    "description": "Gulp plugin to update snippets from source to Gist.",
+    "keywords": [
+        "gulpplugin",
+        "github",
+        "gist"
+    ],
+    "author": {
+        "name": "Erwan Loisant",
+        "email": "eloisant@gmail.com",
+        "url": "https://caffeinelab.net"
+    },
+    "bugs": {
+        "url": "https://github.com/erwan/gulp-gist/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "http://github.com/erwan/gulp-gist.git"
+    },
+    "dependencies": {
+        "gulp": "^3.8.8",
+        "gulp-util": "^3.0.1",
+        "vinyl-map": "~1.0.1"
+    },
+    "engines": {
+        "node": ">=0.10.0",
+        "npm": ">=1.2.10"
+    },
+    "license": "Apache 2.0"
+}
