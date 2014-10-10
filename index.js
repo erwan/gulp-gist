@@ -31,7 +31,7 @@ var gulpGist = function() {
         var currentGist = null;
         var lineNo = 0;
         lines.forEach(function(line) {
-            if (line.indexOf("// startgist:") === 0) {
+            if (line.indexOf("// startgist:") > -1 || line.indexOf("# startgist:") > -1) {
                 if (currentGist) {
                     throw new PluginError(PLUGIN_NAME, filename + ":" + lineNo + ": Unexpected startgist: a previous gist was not closed");
                 }
@@ -40,13 +40,13 @@ var gulpGist = function() {
                     "filename": line.split(":")[2].trim(),
                     "lines": []
                 };
-            } else if (line.indexOf("// endgist") === 0) {
+            } else if (line.indexOf("// endgist") > -1 || line.indexOf("# endgist") > -1) {
                 if (!currentGist) {
                     throw new PluginError(PLUGIN_NAME, filename + ":" + lineNo + " Unexpected endgist: missing startgist earlier");
                 }
                 gists.push(currentGist);
                 currentGist = null;
-            } else if (currentGist && line.indexOf("gisthide") < 0) {
+            } else if (currentGist && line.indexOf("gisthide") < -1) {
                 currentGist.lines.push(line);
             }
             lineNo += 1;
