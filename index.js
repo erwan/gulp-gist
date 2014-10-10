@@ -46,7 +46,7 @@ var gulpGist = function() {
                 }
                 gists.push(currentGist);
                 currentGist = null;
-            } else if (currentGist && line.indexOf("gisthide") < -1) {
+            } else if (currentGist && line.indexOf("gisthide") == -1) {
                 currentGist.lines.push(line);
             }
             lineNo += 1;
@@ -63,7 +63,7 @@ var gulpGist = function() {
                     'content': leftAlign(gist.lines).join("\n")
                 };
                 var data = JSON.stringify(json);
-                gutil.log("Push gist " + gist.id)
+                gutil.log("Push gist " + gist.id);
                 var req = https.request({
                     "host": "api.github.com",
                     "path": "/gists/" + gist.id,
