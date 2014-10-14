@@ -1,7 +1,9 @@
 var gutil = require('gulp-util'),
     map = require('vinyl-map'),
     https = require('https'),
-    fs = require('fs');
+    throat = require('throat'), // Number of max simultaneous requests
+    Q = require('q'),
+    fs = require("q-io/fs");
 
 var PluginError = gutil.PluginError;
 
@@ -21,6 +23,41 @@ function leftAlign(lines) {
 
 function getUserHome() {
     return process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
+}
+
+// Send patch to Github and return a promise of result
+function patch(auth, gist) {
+    var done = Q.defer();
+
+    var json = {
+        files: {}
+    };
+    json.files[gist.filename] = {
+        'content': leftAlign(gist.lines).join("\n")
+    };
+    var data = JSON.stringify(json);
+    gutil.log("Push gist " + gist.id);
+    var req = https.request({
+        "host": "api.github.com",
+        "path": "/gists/" + gist.id,
+        "method": "PATCH",
+        "headers": {
+            'User-Agent': 'erwan',
+            'Authorization': 'Basic ' + new Buffer(auth).toString('base64'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': data.length
+        }
+    }, function (res) {
+        gutil.log('Gist response ' + res.statusCode + ' for gist ' + gist.id);
+        done.resolve(res);
+    });
+    req.write(data);
+    req.end();
+    req.on("error", function (error) {
+        gutil.log('Gist error ' + error);
+        done.reject(error);
+    });
+    return done.promise;
 }
 
 // plugin level function (dealing with files)
@@ -54,33 +91,11 @@ var gulpGist = function() {
         if (currentGist) {
             throw new PluginError(PLUGIN_NAME, "Reached end of file but gist is still open");
         }
-        fs.readFile(getUserHome() + '/.gistauth', 'utf8', function (err, auth) {
-            gists.forEach(function (gist) {
-                var json = {
-                    files: {}
-                };
-                json.files[gist.filename] = {
-                    'content': leftAlign(gist.lines).join("\n")
-                };
-                var data = JSON.stringify(json);
-                gutil.log("Push gist " + gist.id);
-                var req = https.request({
-                    "host": "api.github.com",
-                    "path": "/gists/" + gist.id,
-                    "method": "PATCH",
-                    "headers": {
-                        'User-Agent': 'erwan',
-                        'Authorization': 'Basic ' + new Buffer(auth).toString('base64'),
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Content-Length': data.length
-                    }
-                }, function (res) {
-                    gutil.log('Gist response ' + res.statusCode + ' for gist ' + gist.id);
-                });
-                req.write(data);
-                req.end();
-            });
-        });
+        return fs.read(getUserHome() + '/.gistauth', 'b').then(function (auth) {
+            return Q.all(gists.map(function(gist){
+                return patch(auth, gist);
+            }));
+        }).done();
     });
 };
 

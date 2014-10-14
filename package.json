@@ -22,7 +22,10 @@
     "dependencies": {
         "gulp": "^3.8.8",
         "gulp-util": "^3.0.1",
-        "vinyl-map": "~1.0.1"
+        "vinyl-map": "~1.0.1",
+        "throat": "~1.0.0",
+        "q-io": "~1.11.5",
+        "q": "~1.0.1"
     },
     "engines": {
         "node": ">=0.10.0",
