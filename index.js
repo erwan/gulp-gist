@@ -1,7 +1,6 @@
 var gutil = require('gulp-util'),
     map = require('vinyl-map'),
     https = require('https'),
-    throat = require('throat'), // Number of max simultaneous requests
     Q = require('q'),
     fs = require("q-io/fs");
 
@@ -25,30 +24,63 @@ function getUserHome() {
     return process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
 }
 
-// Send patch to Github and return a promise of result
-function patch(auth, gist) {
+function create(auth, files) {
     var done = Q.defer();
 
-    var json = {
-        files: {}
-    };
-    json.files[gist.filename] = {
-        'content': leftAlign(gist.lines).join("\n")
-    };
-    var data = JSON.stringify(json);
-    gutil.log("Push gist " + gist.id);
+    var data = JSON.stringify({
+        public: true,
+        files: files
+    });
+    var len = Object.keys(files).length;
+    gutil.log("Push " + len + " file" + (len === 1 ? '' : 's') + " to new gist");
+    var body = "";
     var req = https.request({
         "host": "api.github.com",
-        "path": "/gists/" + gist.id,
+        "path": "/gists",
+        "method": "POST",
+        "headers": {
+            'User-Agent': 'prismicdeveloper',
+            'Authorization': 'Basic ' + new Buffer(auth).toString('base64'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': data.length
+        }
+    });
+    req.write(data);
+    req.end();
+    req.on("data", function (chunk) {
+        body += chunk;
+    });
+    req.on("end", function() {
+        gutil.log("Done creating ", files);
+        done.resolve(body);
+    });
+    req.on("error", function (error) {
+        gutil.log('Gist error ' + error);
+        done.reject(error);
+    });
+    return done.promise;
+}
+
+function patch(auth, id, files) {
+    var done = Q.defer();
+
+    var data = JSON.stringify({
+        files: files
+    });
+    var len = Object.keys(files).length;
+    gutil.log("Push " + len + " file" + (len === 1 ? '' : 's') + " to gist " + id);
+    var req = https.request({
+        "host": "api.github.com",
+        "path": "/gists/" + id,
         "method": "PATCH",
         "headers": {
-            'User-Agent': 'erwan',
+            'User-Agent': 'prismicdeveloper',
             'Authorization': 'Basic ' + new Buffer(auth).toString('base64'),
             'Content-Type': 'application/x-www-form-urlencoded',
             'Content-Length': data.length
         }
     }, function (res) {
-        gutil.log('Gist response ' + res.statusCode + ' for gist ' + gist.id);
+        gutil.log('Gist response ' + res.statusCode + ' for gist ' + id);
         done.resolve(res);
     });
     req.write(data);
@@ -61,10 +93,11 @@ function patch(auth, gist) {
 }
 
 // plugin level function (dealing with files)
-var gulpGist = function() {
+var gulpGist = function(args) {
+    var mode = (args && args['mode']) || 'update';
     return map(function(code, filename) {
         var lines = code.toString().split("\n");
-        var gists = [];
+        var gists = {};
         var currentGist = null;
         var lineNo = 0;
         lines.forEach(function(line) {
@@ -81,7 +114,12 @@ var gulpGist = function() {
                 if (!currentGist) {
                     throw new PluginError(PLUGIN_NAME, filename + ":" + lineNo + " Unexpected endgist: missing startgist earlier");
                 }
-                gists.push(currentGist);
+                if (!gists[currentGist.id]) {
+                    gists[currentGist.id] = {};
+                }
+                gists[currentGist.id][currentGist.filename] = {
+                    'content': leftAlign(currentGist.lines).join("\n")
+                };
                 currentGist = null;
             } else if (currentGist && line.indexOf("gisthide") == -1) {
                 currentGist.lines.push(line);
@@ -91,11 +129,21 @@ var gulpGist = function() {
         if (currentGist) {
             throw new PluginError(PLUGIN_NAME, "Reached end of file but gist is still open");
         }
-        return fs.read(getUserHome() + '/.gistauth', 'b').then(function (auth) {
-            return Q.all(gists.map(function(gist){
-                return patch(auth, gist);
-            }));
-        }).done();
+        if (mode == 'create') {
+            return fs.read(getUserHome() + '/.gistauth', 'b').then(function (auth) {
+                return Q.all(Object.keys(gists).map(function(id) {
+                    return create(auth, gists[id]);
+                }));
+            }).done();
+        } else if (mode == 'update') {
+            return fs.read(getUserHome() + '/.gistauth', 'b').then(function (auth) {
+                return Q.all(Object.keys(gists).map(function(id) {
+                    return patch(auth, id, gists[id]);
+                }));
+            }).done();
+        } else {
+            gutil.log('Gist mock: ', gists);
+        }
     });
 };
 
